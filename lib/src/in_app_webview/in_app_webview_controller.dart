@@ -71,6 +71,8 @@ class InAppWebViewController {
   ///Provides access to the JavaScript [Web Storage API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Storage_API): `window.sessionStorage` and `window.localStorage`.
   late WebStorage webStorage;
 
+  dynamic Function(String mimeType, Uint8List data)? onImeCommitContent;
+
   InAppWebViewController(dynamic id, WebView webview) {
     this._id = id;
     this._channel =
@@ -101,6 +103,7 @@ class InAppWebViewController {
   }
 
   Future<dynamic> handleMethod(MethodCall call) async {
+    print('webviewController.handleMethod(${call.method})');
     switch (call.method) {
       case "onLoadStart":
         _injectedScriptsFromURL.clear();
@@ -893,6 +896,16 @@ class InAppWebViewController {
             print(error);
             return null;
           }
+        }
+        break;
+      case "onImeCommitContent":
+        String mimeType = call.arguments["mimeType"];
+        Uint8List data = call.arguments["data"];
+        // print(
+        //     'iawv (Flutter): onImeCommitContent: mimeType=$mimeType, data.length=${data.length}: onImeCommitContent callback defined: ${onImeCommitContent != null}');
+        final callback = onImeCommitContent;
+        if (callback != null) {
+          callback(mimeType, data);
         }
         break;
       default:

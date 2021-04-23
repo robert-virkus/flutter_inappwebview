@@ -1,5 +1,7 @@
 package com.pichillilorenzo.flutter_inappwebview.in_app_webview;
 
+import android.app.Activity;
+import android.content.ContextWrapper;
 import android.animation.ObjectAnimator;
 import android.animation.PropertyValuesHolder;
 import android.annotation.TargetApi;
@@ -51,6 +53,11 @@ import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
+import androidx.core.view.inputmethod.EditorInfoCompat;
+import androidx.core.view.inputmethod.InputConnectionCompat;
+import androidx.core.view.inputmethod.InputContentInfoCompat;
+import androidx.core.os.BuildCompat;
+import android.net.Uri;
 
 import com.pichillilorenzo.flutter_inappwebview.InAppWebViewFlutterPlugin;
 import com.pichillilorenzo.flutter_inappwebview.JavaScriptBridgeInterface;
@@ -83,7 +90,9 @@ import com.pichillilorenzo.flutter_inappwebview.types.WebMessageListener;
 
 import org.json.JSONObject;
 
+import java.io.FileNotFoundException;
 import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -1289,8 +1298,8 @@ final public class InAppWebView extends InputAwareWebView {
   }
 
   @Override
-  public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
-    InputConnection connection = super.onCreateInputConnection(outAttrs);
+  public InputConnection onCreateInputConnection(EditorInfo editorInfo) {
+    InputConnection connection = super.onCreateInputConnection(editorInfo);
     if (connection == null && !options.useHybridComposition && containerView != null) {
       // workaround to hide the Keyboard when the user click outside
       // on something not focusable such as input or a textarea.
@@ -1311,7 +1320,95 @@ final public class InAppWebView extends InputAwareWebView {
                       },
                       128);
     }
-    return connection;
+    if (connection == null) {
+      // System.out.print("iawv: WARN: super call did not yield InputConnection!");
+      return connection;
+    }
+
+    //TODO this list of support mime types should be configurable and if it is not set,
+    // this code should not run at all.
+    // System.out.print("iawv: OK: super call created InputConnection");
+    EditorInfoCompat.setContentMimeTypes(editorInfo,
+                new String [] {"image/png", "image/gif", "image/jpeg", "image/jpg"});
+    final InputConnectionCompat.OnCommitContentListener callback =
+        new InputConnectionCompat.OnCommitContentListener() {
+            @Override
+            public boolean onCommitContent(InputContentInfoCompat inputContentInfo,
+                    int flags, Bundle opts) {
+                // ensure permission is granted
+                if (BuildCompat.isAtLeastNMR1() && (flags &
+                  InputConnectionCompat.INPUT_CONTENT_GRANT_READ_URI_PERMISSION) != 0) {
+                  try {
+                      inputContentInfo.requestPermission();
+                  }
+                  catch (Exception e) {
+                      return false; // return false if failed
+                  }
+                }
+                // System.out.println("iawv: OK: received info " + inputContentInfo);
+                if (inputContentInfo.getDescription().getMimeTypeCount() > 0) {
+                  inputContentInfo.requestPermission();
+                  final Uri uri = inputContentInfo.getContentUri();
+                  final String mimeType = inputContentInfo.getDescription().getMimeType(0);
+                  // System.out.println("iawv: OK: received URI " + uri + " with mimeType " + mimeType);
+                  Context context = getContext();
+                  try {
+                    final InputStream is = context.getContentResolver().openInputStream(uri);
+                    final byte[] data = readStreamFully(is, 64*1024);
+                    System.out.println("iawv: OK: data.length="  + data.length +" of uri " + uri);
+                    final Map<String, Object> obj = new HashMap<>();
+                    obj.put("mimeType", mimeType);
+                    obj.put("data", data);
+                    getActivity(context).runOnUiThread(new Runnable(){
+                        public void run() {
+                            channel.invokeMethod("onImeCommitContent", obj);
+                        }
+                    });
+
+                    inputContentInfo.releasePermission();
+
+                    return true;
+                  } catch (FileNotFoundException ex) {
+                    // System.err.println("iawv: ERROR: unable to load " + uri + ": " + ex);
+                  }
+                }
+                //TODO read and display inputContentInfo asynchronously.
+                // call inputContentInfo.releasePermission() as needed.
+
+                return false;  // return true if succeeded
+            }
+        };
+    
+
+    return InputConnectionCompat.createWrapper(connection, editorInfo, callback);
+  }
+
+  private Activity getActivity(Context context) {
+    while (context instanceof ContextWrapper) {
+        if (context instanceof Activity) {
+            return (Activity)context;
+        }
+        context = ((ContextWrapper)context).getBaseContext();
+    }
+    return null;
+}
+
+  public static byte[] readStreamFully(InputStream is, int blocksize) {
+    try {
+      ByteArrayOutputStream baos = new ByteArrayOutputStream();
+
+      byte[] buffer = new byte[blocksize];
+      while (true) {
+        int len = is.read(buffer);
+        if (len == -1) {
+          break;
+        }
+        baos.write(buffer, 0, len);
+      }
+      return baos.toByteArray();
+    } catch (Exception e) {
+    }
+    return new byte[0];
   }
 
   @Override
