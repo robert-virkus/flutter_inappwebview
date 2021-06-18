@@ -2091,6 +2091,7 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
     public func scrollViewDidZoom(_ scrollView: UIScrollView) {
         let newScale = Float(scrollView.zoomScale)
         if newScale != oldZoomScale {
+            // print("IAWV: scrollViewDidZoom: newScale=\(newScale) oldScale=\(oldZoomScale)")
             self.onZoomScaleChanged(newScale: newScale, oldScale: oldZoomScale)
             oldZoomScale = newScale
         }
@@ -2718,13 +2719,20 @@ if(window.\(JAVASCRIPT_BRIDGE_NAME)[\(_callHandlerID)] != null) {
         return Int64(scrollView.contentSize.height)
     }
     
-    public func zoomBy(zoomFactor: Float, animated: Bool) {
+    public func zoomBy(zoomFactor: Double, animated: Bool) {
         let currentZoomScale = scrollView.zoomScale
-        scrollView.setZoomScale(currentZoomScale * CGFloat(zoomFactor), animated: animated)
+        let scale = currentZoomScale * CGFloat(zoomFactor)
+        // print("IAWV: SCALE=\(scale) min=\(scrollView.minimumZoomScale) max=\(scrollView.maximumZoomScale)")
+        // if (scale < scrollView.minimumZoomScale) {
+        scrollView.minimumZoomScale = scale - 0.01
+        scrollView.maximumZoomScale = scale + 0.01
+        // print("adjusting scrollView.minimumZoomScale")
+        // }
+        scrollView.setZoomScale(scale, animated: animated)
     }
     
-    public func getZoomScale() -> Float {
-        return Float(scrollView.zoomScale)
+    public func getZoomScale() -> Double {
+        return Double(scrollView.zoomScale)
     }
     
     public func getSelectedText(completionHandler: @escaping (Any?, Error?) -> Void) {
