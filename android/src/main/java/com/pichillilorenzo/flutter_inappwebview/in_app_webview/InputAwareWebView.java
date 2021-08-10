@@ -149,11 +149,20 @@ public class InputAwareWebView extends WebView {
   @Override
   public void clearFocus() {
     super.clearFocus();
-
+    hideKeyboard(this);
     if (useHybridComposition) {
       return;
     }
     resetInputConnection();
+  }
+
+  public static void hideKeyboard(View view) {
+    if (view != null) {
+      InputMethodManager imm = (InputMethodManager) view.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+      if (imm != null) {
+        imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
+      }
+    }
   }
 
   /**
