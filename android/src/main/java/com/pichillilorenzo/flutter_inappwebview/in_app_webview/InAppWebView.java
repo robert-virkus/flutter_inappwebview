@@ -1355,7 +1355,7 @@ final public class InAppWebView extends InputAwareWebView {
                   try {
                     final InputStream is = context.getContentResolver().openInputStream(uri);
                     final byte[] data = readStreamFully(is, 64*1024);
-                    System.out.println("iawv: OK: data.length="  + data.length +" of uri " + uri);
+                    // System.out.println("iawv: OK: data.length="  + data.length +" of uri " + uri);
                     final Map<String, Object> obj = new HashMap<>();
                     obj.put("mimeType", mimeType);
                     obj.put("data", data);
